@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: my-apps
+  labels:
+    mesh: my-mesh
+    appmesh.k8s.aws/sidecarInjectorWebhook: enabled
+---
+apiVersion: appmesh.k8s.aws/v1beta2
+kind: Mesh
+metadata:
+  name: my-mesh
+spec:
+  namespaceSelector:
+    matchLabels:
+      mesh: my-mesh
+---
+apiVersion: appmesh.k8s.aws/v1beta2
+kind: VirtualNode
+metadata:
+  name: my-service-a
+  namespace: my-apps
+spec:
+  podSelector:
+    matchLabels:
+      app: my-app-1
+  listeners:
+    - portMapping:
+        port: 80
+        protocol: http
+  serviceDiscovery:
+    dns:
+      hostname: my-service-a.my-apps.svc.cluster.local
+---
+apiVersion: appmesh.k8s.aws/v1beta2
+kind: VirtualRouter
+metadata:
+  namespace: my-apps
+  name: my-service-a-virtual-router
+spec:
+  listeners:
+    - portMapping:
+        port: 80
+        protocol: http
+  routes:
+    - name: my-service-a-route
+      httpRoute:
+        match:
+          prefix: /
+        action:
+          weightedTargets:
+            - virtualNodeRef:
+                name: my-service-a
+              weight: 1
+---
+apiVersion: appmesh.k8s.aws/v1beta2
+kind: VirtualService
+metadata:
+  name: my-service-a
+  namespace: my-apps
+spec:
+  awsName: my-service-a.my-apps.svc.cluster.local
+  provider:
+    virtualRouter:
+      virtualRouterRef:
+        name: my-service-a-virtual-router
